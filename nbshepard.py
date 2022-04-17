@@ -6,7 +6,7 @@
 # Emit Shepard Tones on audio output using the
 # PulseAudio blocking interface.
 
-import math, pyaudio, struct, sys, threading, time
+import math, pyaudio, struct, sys, time
 
 # Sample rate in frames per second.
 SAMPLE_RATE = 48_000
@@ -44,7 +44,7 @@ def sweep(i):
     while True:
         for t in range(SWEEP_SAMPLES):
             frac = t / SWEEP_SAMPLES
-            scale = (math.pow(2.0, frac) - 1.0) / (2.0 - 1.0)
+            scale = math.pow(2.0, frac) - 1.0
             f = TONE_START_FREQ + (TONE_END_FREQ - TONE_START_FREQ) * scale
             a = 0.5 * TONE_LOUD * math.sin(math.pi * frac) * scale
             w = 2.0 * math.pi * f * t / SWEEP_SAMPLES
