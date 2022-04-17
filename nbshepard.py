@@ -4,9 +4,10 @@
 # distribution of this software for license terms.
 
 # Emit Shepard Tones on audio output using the
-# PyAudio blocking interface.
+# sounddevice blocking interface.
 
-import math, pyaudio, struct, sys, time
+import math, struct, sys, time
+import sounddevice as sd
 
 # Sample rate in frames per second.
 SAMPLE_RATE = 48_000
@@ -52,26 +53,26 @@ def sweep(i):
 
 # Shepard Tone generator.
 tones = [sweep(i) for i in range(NTONES)]
-def callback(in_data, frames, time_info, status):
+def callback(out_data, frames, time_info, status):
     # print(f"callback {frames} {time_info} {status}")
     buffer = list()
     for i in range(frames):
         sample = sum([next(s) for s in tones]) / NTONES
         # print(sample)
         buffer.append(sample)
-    return (struct.pack("{}f".format(frames), *buffer), pyaudio.paContinue)
+    out_data[:] = struct.pack("{}f".format(frames), *buffer)
 
 # Set up the stream.
-pa = pyaudio.PyAudio()
-stream = pa.open(rate = SAMPLE_RATE,
-                 channels = 1,
-                 format = pyaudio.paFloat32,
-                 output = True,
-                 frames_per_buffer = BUFFER_SIZE,
-                 stream_callback = callback)
+stream = sd.RawOutputStream(
+    samplerate = SAMPLE_RATE,
+    blocksize = BUFFER_SIZE,
+    channels = 1,
+    dtype = 'float32',
+    callback = callback,
+)
             
 # Run the stream.
-stream.start_stream()
+stream.start()
 # XXX Awkward wait forever
 while True:
     try:

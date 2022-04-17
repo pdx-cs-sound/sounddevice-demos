@@ -4,7 +4,7 @@
 # distribution of this software for license terms.
 
 # Emit a monophonic square wave on audio output using the
-# PyAudio blocking interface.
+# snddevice blocking interface.
 
 import ctypes, math, struct, sys
 import sounddevice as sd
