@@ -6,7 +6,8 @@
 # Emit a monophonic square wave on audio output using the
 # PyAudio blocking interface.
 
-import ctypes, math, struct, sys, pyaudio
+import ctypes, math, struct, sys
+import sounddevice as sd
 
 # Sample rate in frames per second.
 SAMPLE_RATE = 48_000
@@ -49,12 +50,12 @@ print("last buffer nominal size: {}".format(
          BUFFER_SIZE * (BUFFERS + 1) - FRAMES))
 
 # Set up the stream.
-pa = pyaudio.PyAudio()
-stream = pa.open(rate = SAMPLE_RATE,
-                 channels = 1,
-                 format = pyaudio.paFloat32,
-                 frames_per_buffer = BUFFER_SIZE,
-                 output = True)
+stream = sd.RawOutputStream(
+    samplerate = SAMPLE_RATE,
+    blocksize = BUFFER_SIZE,
+    channels = 1,
+    dtype = 'float32',
+)
 
 # State for the sine generator.
 cycle = 0
@@ -81,11 +82,11 @@ fill_buffer()
 fmt = struct.Struct("{}f".format(BUFFER_SIZE))
 pbuffer = ctypes.create_string_buffer(4*BUFFER_SIZE)
 fmt.pack_into(pbuffer, 0, *fbuffer)
-stream.start_stream()
+stream.start()
 while written < FRAMES:
     # Write buffer.
     try:
-        stream.write(pbuffer, exception_on_underflow = True)
+        assert not stream.write(pbuffer), "underrun"
     except OSError as status:
         print(status)
         exit(1)
@@ -97,5 +98,5 @@ while written < FRAMES:
 
 
 # Tear down the stream.
-stream.stop_stream()
+stream.stop()
 stream.close()
