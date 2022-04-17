@@ -6,16 +6,17 @@
 # Emit a monophonic square wave on audio output using the
 # PyAudio blocking interface.
 
-import sys
-import struct
-import ctypes
-import pyaudio
+import ctypes, math, struct, sys
+import sounddevice as sd
 
 # Sample rate in frames per second.
 SAMPLE_RATE = 48_000
 
 # Frequency in cycles per second.
 FREQ = 400
+
+# Peak-to-peak amplitude
+AMPLITUDE = 0.1
 
 # Output time in milliseconds.
 MSECS = 3000
@@ -34,68 +35,86 @@ FRAMES = SAMPLE_RATE * MSECS // 1000
 # may be one low due to truncation.
 BUFFERS = FRAMES // BUFFER_SIZE
 
-# Number of frames constituting a half cycle of the square
+# Number of frames constituting a cycle of the sine
 # wave at the given frequency. The code only supports
 # whole numbers, so the frequency may be slightly higher
 # than desired due to truncation.
+FRAMES_PER_CYCLE = SAMPLE_RATE // FREQ
+
 FRAMES_PER_HALFCYCLE = SAMPLE_RATE // (2 * FREQ)
 
-print("blocking square wave")
+print("blocking wave")
 print("sample_rate: {}, msecs: {}, freq: {}".format(
         SAMPLE_RATE, MSECS, FREQ))
 print("buffer size: {}, buffers: {}, halfcycle: {}".format(
-        BUFFER_SIZE, BUFFERS, FRAMES_PER_HALFCYCLE))
+        BUFFER_SIZE, BUFFERS, FRAMES_PER_CYCLE))
 print("last buffer nominal size: {}".format(
          BUFFER_SIZE * (BUFFERS + 1) - FRAMES))
 
 # Set up the stream.
-pa = pyaudio.PyAudio()
-stream = pa.open(rate = SAMPLE_RATE,
-                 channels = 1,
-                 format = pyaudio.paFloat32,
-                 frames_per_buffer = BUFFER_SIZE,
-                 output = True)
+stream = sd.RawOutputStream(
+    samplerate = SAMPLE_RATE,
+    blocksize = BUFFER_SIZE,
+    channels = 1,
+    dtype = 'float32',
+)
 
-# State for the square generator.
-cycle = 0
-sign = 0.05
+class Sine(object):
+    # State for the sine generator.
+    cycle = 0
 
-# Bump the state forward by the given number of frames.
-def advance_state(advance):
-    global cycle, sign
-    cycle += advance
-    while cycle >= FRAMES_PER_HALFCYCLE:
-        sign = -sign;
-        cycle -= FRAMES_PER_HALFCYCLE
+    # Bump the state forward by the given number of frames
+    # and produce frame values.
+    def advance_state(self, advance):
+        for _ in range(advance):
+            frame = 0.5 * AMPLITUDE * \
+                math.sin(2 * math.pi * self.cycle / FRAMES_PER_CYCLE)
+            self.cycle += 1
+            yield frame
+
+class Square(object):
+    # State for the square generator.
+    cycle = 0
+    sign = 0.05
+
+    # Bump the state forward by the given number of frames.
+    def advance_state(self, advance):
+        for _ in range(advance):
+            self.cycle += 1
+            if self.cycle >= FRAMES_PER_HALFCYCLE:
+                self.sign = -self.sign;
+                self.cycle = 0
+            yield self.sign
+    
+waves = {
+    "square": Square,
+    "sine": Sine,
+}
+wave = waves[sys.argv[1]]()
 
 # Write all the frames.
 written = 0
 fbuffer = [0.0] * BUFFER_SIZE
-def fill_buffer():
+def fill_buffer(wave):
     global fbuffer
-    for i in range(BUFFER_SIZE):
-        fbuffer[i] = sign
-        advance_state(1)
+    for i, frame in enumerate(wave.advance_state(BUFFER_SIZE)):
+        fbuffer[i] = frame
 
-fill_buffer()
+fill_buffer(wave)
 fmt = struct.Struct("{}f".format(BUFFER_SIZE))
 pbuffer = ctypes.create_string_buffer(4*BUFFER_SIZE)
 fmt.pack_into(pbuffer, 0, *fbuffer)
-stream.start_stream()
+stream.start()
 while written < FRAMES:
     # Write buffer.
-    try:
-        stream.write(pbuffer, exception_on_underflow = True)
-    except OSError as status:
-        print(status)
-        exit(1)
+    assert not stream.write(pbuffer), "underrun"
 
     # Advance to next buffer.
     written += BUFFER_SIZE
-    fill_buffer()
+    fill_buffer(wave)
     fmt.pack_into(pbuffer, 0, *fbuffer)
 
 
 # Tear down the stream.
-stream.stop_stream()
+stream.stop()
 stream.close()
