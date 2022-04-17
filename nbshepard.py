@@ -4,7 +4,7 @@
 # distribution of this software for license terms.
 
 # Emit Shepard Tones on audio output using the
-# PulseAudio blocking interface.
+# PyAudio blocking interface.
 
 import math, pyaudio, struct, sys, time
 
