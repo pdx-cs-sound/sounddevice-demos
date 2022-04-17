@@ -6,10 +6,8 @@
 # Emit a monophonic square wave on audio output using the
 # PyAudio blocking interface.
 
-import sys
-import struct
-import pyaudio
-import time
+import struct, sys, time
+import sounddevice as sd
 
 # Sample rate in frames per second.
 SAMPLE_RATE = 48_000
@@ -51,32 +49,32 @@ print("last buffer nominal size: {}".format(
 
 # State for the square generator.
 cycle = 0
-sign = 0.8
+sign = 0.5
 
 # Square generator.
-def callback(in_data, frames, time_info, status):
+def callback(out_data, frames, time_info, status):
     global cycle, sign
 
     buffer = list()
     for i in range(frames):
         buffer.append(sign)
         cycle += 1
-        while cycle >= FRAMES_PER_HALFCYCLE:
+        if cycle >= FRAMES_PER_HALFCYCLE:
             sign = -sign
-            cycle -= FRAMES_PER_HALFCYCLE
-    return (struct.pack("{}f".format(frames), *buffer), pyaudio.paContinue)
+            cycle = 0
+    out_data[:] = struct.pack("{}f".format(frames), *buffer)
 
 # Set up the stream.
-pa = pyaudio.PyAudio()
-stream = pa.open(rate = SAMPLE_RATE,
-                 channels = 1,
-                 format = pyaudio.paFloat32,
-                 output = True,
-                 frames_per_buffer = BUFFER_SIZE,
-                 stream_callback = callback)
+stream = sd.RawOutputStream(
+    samplerate = SAMPLE_RATE,
+    blocksize = BUFFER_SIZE,
+    channels = 1,
+    dtype = 'float32',
+    callback = callback,
+)
             
 # Run the stream.
-stream.start_stream()
+stream.start()
 time.sleep(SECS)
-stream.stop_stream()
+stream.stop()
 stream.close()
