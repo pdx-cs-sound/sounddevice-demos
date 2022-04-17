@@ -39,7 +39,7 @@ BUFFERS = FRAMES // BUFFER_SIZE
 # wave at the given frequency. The code only supports
 # whole numbers, so the frequency may be slightly higher
 # than desired due to truncation.
-FRAMES_PER_CYCLE = SAMPLE_RATE // (2 * FREQ)
+FRAMES_PER_CYCLE = SAMPLE_RATE // FREQ
 
 print("blocking square wave")
 print("sample_rate: {}, msecs: {}, freq: {}".format(
