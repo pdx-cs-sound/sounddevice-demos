@@ -21,10 +21,10 @@ AMPLITUDE = 0.1
 # Output time in milliseconds.
 MSECS = 3000
 
-
-# Size of output buffer in frames. Less than 1024 is not
-# recommended, as most audio interfaces will choke
-# horribly.
+# Size of output buffer in frames.
+# Increasing this beyond 2048 is likely to run into this bug
+# on PipeWire machines:
+# https://gitlab.freedesktop.org/pipewire/pipewire/-/issues/2373
 BUFFER_SIZE = 2048
 
 # Total number of frames to be sent.
